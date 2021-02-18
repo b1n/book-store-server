@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/b1n/proto-book-store"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"log"
 	"net"
+	"os"
 )
 
 func main() {
@@ -27,9 +29,9 @@ func (s *Service) GetBook(_ context.Context, request *book_store.GetBookRequest)
 }
 
 func startServer(service *Service) {
-	listener, err := net.Listen("tcp", ":8080")
+	listener, err := net.Listen("tcp", ":"+os.Getenv("GRPC_PORT"))
 	if err != nil {
-		log.Printf("Can't listen TCP port: %s", "8080")
+		log.Printf("Can't listen TCP port: %s", os.Getenv("GRPC_PORT"))
 		log.Println("Error: ", err)
 		return
 	}
@@ -38,17 +40,26 @@ func startServer(service *Service) {
 
 	book_store.RegisterBookStoreServer(server, service)
 
-	log.Printf("Starting gRPC server at: %s", "8080")
+	log.Printf("Starting gRPC server at: %s", os.Getenv("GRPC_PORT"))
 
 	if err := server.Serve(listener); err != nil {
-		log.Printf("Can't start gRPC server at: %s", "8080")
+		log.Printf("Can't start gRPC server at: %s", os.Getenv("GRPC_PORT"))
 	}
 }
 
 func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
-	if md["access-token"][0] != "our_super-mega-secret_token" {
-		return nil, errors.New("auth error")
+
+	tokens, ok := md["access-token"]
+	if !ok {
+		return nil, status.Error(codes.PermissionDenied, "PermissionDenied")
 	}
+	if len(tokens) <= 0 {
+		return nil, status.Error(codes.PermissionDenied, "PermissionDenied")
+	}
+	if tokens[0] != os.Getenv("TOKEN") {
+		return nil, status.Error(codes.PermissionDenied, "PermissionDenied")
+	}
+
 	return handler(ctx, req)
 }
