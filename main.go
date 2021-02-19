@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 )
 
 func main() {
@@ -21,6 +22,10 @@ func main() {
 type Service struct{}
 
 func (s *Service) GetBook(_ context.Context, request *book_store.GetBookRequest) (*book_store.GetBookResponse, error) {
+	if request.Id == 2 {
+		return nil, status.Error(codes.Internal, "INTERNAL")
+	}
+
 	response := &book_store.GetBookResponse{
 		Id:   request.Id,
 		Name: fmt.Sprintf("Test %d", request.Id),
@@ -48,7 +53,23 @@ func startServer(service *Service) {
 }
 
 func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+
+	var err error
+	var reply interface{}
+
 	md, _ := metadata.FromIncomingContext(ctx)
+
+	defer func() {
+		log.Printf(`--
+	incoming call=%v
+	req=%#v
+	md=%v
+	reply=%#v
+	time=%v	
+	err=%v
+`, info.FullMethod, req, md, reply, time.Since(start), err)
+	}()
 
 	tokens, ok := md["access-token"]
 	if !ok {
@@ -61,5 +82,7 @@ func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInf
 		return nil, status.Error(codes.PermissionDenied, "PermissionDenied")
 	}
 
-	return handler(ctx, req)
+	reply, err = handler(ctx, req)
+
+	return reply, err
 }
