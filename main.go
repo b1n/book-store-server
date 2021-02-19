@@ -52,11 +52,8 @@ func startServer(service *Service) {
 	}
 }
 
-func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func interceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (reply interface{}, err error) {
 	start := time.Now()
-
-	var err error
-	var reply interface{}
 
 	md, _ := metadata.FromIncomingContext(ctx)
 
